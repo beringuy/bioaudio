@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title> BioAudio </title> <!-- Título da página -->    
+    <style>
+        *{font-size:20px};        
+    </style>
+    <link href="http://fonts.googleapis.com/css?family=Ubuntu:regular,bold&subset=Latin" rel="stylesheet" type="text/css" >
+    <link href='https://fonts.googleapis.com/css?family=Lexend' rel='stylesheet'>
+    <link href='https://fonts.googleapis.com/css?family=Tilt Neon' rel='stylesheet'>
+    <style type="text/css">
+      
+      html, body {
+        height: 100%;
+      }
+
+      html {
+        display: table;
+        margin: auto;
+      }
+
+      body {
+        display: table-cell;
+        vertical-align: middle;
+        width: 500px;
+        background: rgb(240,247,255);
+        background: linear-gradient(180deg, rgba(240,247,255,1) 0%, rgba(199,227,255,1) 100%);
+        font-family: Lexend , Helvetica, Arial, sans-serif;
+      }
+
+      #main{
+        border: 4px solid white;
+        border-radius: 15px;
+        
+      }
+
+      .titulo{
+        font-family: Ubuntu, Helvetica, Arial, sans-serif;
+        font-weight: bold;
+        text-align: center;
+      }
+
+      .nota{
+        font-family: Ubuntu, Helvetica, Arial, sans-serif;
+        font-size: xx-small;
+        text-indent: 15px;
+        direction:rtl;
+        text-align: right
+      }
+
+      .pred{
+        font-family: Lexend, Helvetica, Arial, sans-serif;
+        font-weight: bold;
+        font-size: 14pt;
+        text-indent: 25px
+      }
+
+      .btn{        
+        font-family: Tilt Neon, Helvetica, Arial, sans-serif;
+        color: rgb(30, 30, 30);
+        border-radius: 3pt;
+        font-size: 14pt;
+      }
+
+      .btn:hover {
+        transform: scale(1.05);
+      }
+
+      .btn:active {
+        transform: scale(0.95);
+      }
+
+      #download{
+        font-size: 11pt;
+      }
+
+      #cough-prediction, #covid-prediction{
+        font-size: 11pt;
+        font-family: Lexend, Helvetica, Arial, sans-serif;
+        
+        color:rgb(20, 20, 20);
+      }
+
+      #div_1{        
+        text-align: center;
+      }
+
+      .logo{
+        position: absolute;
+        top: 5%;
+        right: 5%;
+        width: 125px;
+      }
+
+    </style>
+</head>
+
+<body>
+  <img src="fis_logo_colorfully.svg" class= "logo"/>
+  <div id="main">
+    <p class="titulo"> BioAudio <span></span></p>
+    <div id="div_1">
+      <button id="rec" class="btn">Gravar</button> <!-- Botão que inicia a gravação -->
+      <button id="stop" class="btn">Parar</button> <!-- Botão que interrompe a gravação -->    
+      <a id="download">Download</a>  <!-- Link para download do arquivo de áudio gravado -->
+    </div>
+    <div>
+      <p class="pred"> Tosse: <span id="cough-prediction"></span></p>
+      <p class="pred"> Covid: <span id="covid-prediction"></span></p>
+    </div>
+    <p class="nota"> versão 0.1 <span></span></p>
+  </div>
+  
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+  <script>
+    // Obtém referência para os elementos HTML
+    const downloadLink = document.getElementById('download');
+    const stopButton = document.getElementById('stop');
+    const recButton = document.getElementById('rec');    
+
+    // Define o que acontecerá após a gravação ser iniciada com sucesso
+    const handleSuccess =  function(stream) {
+      const options = {mimeType: 'audio/webm'};
+      const recordedChunks = [];
+      const mediaRecorder = new MediaRecorder(stream, options);
+
+      // Cria um evento para cada parte gravada do áudio
+      mediaRecorder.addEventListener('dataavailable', function(e) {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      });
+
+      // Define o que acontecerá após a gravação ser interrompida
+      mediaRecorder.addEventListener('stop', function() {
+        const blob = new Blob(recordedChunks);
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = 'audioRec.wav';        
+
+        // Envia o arquivo de áudio para um servidor usando a biblioteca fetch
+        const audioData = new FormData();
+        audioData.append('audio', blob, 'audioRec.wav');
+
+        fetch('http://localhost:5000/upload-audio', {
+          mode: 'cors',
+          method: 'POST',
+          body: audioData,
+        })
+        .then((response) => response.json() 
+        )
+        .then((body) => {
+          $("#cough-prediction").text(body.prediction.cough);
+          $("#covid-prediction").text(body.prediction.covid)
+        }
+      );
+      })      
+      
+      // Define o que acontecerá após o botão "Parar" ser clicado
+      function handleStopInteraction(evt) {
+        evt.preventDefault()
+        mediaRecorder.stop();
+      }      
+      stopButton.addEventListener('click', handleStopInteraction);
+      stopButton.addEventListener('touchstart', handleStopInteraction);
+
+      // Define o que acontecerá após o botão "Gravar" ser clicado
+      function handleRecInteraction(evt){
+        evt.preventDefault()
+        document.getElementById("cough-prediction").innerHTML = ""; // limpa o campo de texto da "tosse"
+        document.getElementById("covid-prediction").innerHTML = ""; // limpa o campo de texto da "covid"
+        recordedChunks.length = 0; // limpa o áudio anterior
+        mediaRecorder.start();
+        setTimeout(function() {
+            mediaRecorder.stop();
+        }, 4500); // Grava por 4,5 segundos (em milissegundos) e depois interrompe automaticamente
+      }      
+      recButton.addEventListener('click', handleRecInteraction);
+      recButton.addEventListener('touchstart', handleRecInteraction);
+
+    };
+
+    // Solicita permissão do usuário para acesso ao microfone
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(handleSuccess);    
+
+  </script>
+</body>
+
+</html>
